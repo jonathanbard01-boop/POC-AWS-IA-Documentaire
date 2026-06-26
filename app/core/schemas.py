@@ -1,15 +1,46 @@
-from pydantic import BaseModel
+from datetime import datetime, timezone
 from typing import Optional
+
+from pydantic import BaseModel, Field
+
 
 class HealthResponse(BaseModel):
     status: str
     service: str
     version: str
 
+
 class UploadResponse(BaseModel):
     document_id: str
     filename: str
     status: str
+
+
+class DocumentRecord(BaseModel):
+    document_id: str
+    filename: str
+    status: str
+    content_type: Optional[str] = None
+    size_bytes: int = 0
+    local_path: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    final_type: Optional[str] = None
+    final_decision: Optional[str] = None
+    risk_level: Optional[str] = None
+
+
+class DocumentListResponse(BaseModel):
+    documents: list[DocumentRecord]
+
+
+class DocumentResultResponse(BaseModel):
+    document_id: str
+    filename: str
+    status: str
+    result_available: bool
+    result: Optional[dict] = None
+
 
 class EngineResult(BaseModel):
     top_type: Optional[str] = None
@@ -17,6 +48,7 @@ class EngineResult(BaseModel):
     second_type: Optional[str] = None
     second_score: Optional[float] = None
     margin: Optional[float] = None
+
 
 class Decision(BaseModel):
     status: str
