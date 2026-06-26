@@ -52,7 +52,7 @@ docker compose up --build
 
 API : http://localhost:8000/health
 
-## Tester le flux local
+## Tester le flux local par API
 
 Uploader un fichier texte de test :
 
@@ -72,6 +72,14 @@ Consulter le résultat :
 ```bash
 curl http://localhost:8000/documents/<document_id>/result
 ```
+
+## Tester le worker local sans API
+
+```bash
+python -m worker.main --file data/bm25_examples/facture_creche.txt
+```
+
+Cette commande produit directement un JSON d'analyse local : OCR texte, BM25, décision et motifs.
 
 Endpoints disponibles :
 
