@@ -42,6 +42,23 @@ class DocumentResultResponse(BaseModel):
     result: Optional[dict] = None
 
 
+class ProcessingJob(BaseModel):
+    job_id: str
+    document_id: str
+    status: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    error_message: Optional[str] = None
+
+
+class ProcessingJobResponse(BaseModel):
+    job: ProcessingJob
+
+
+class ProcessingQueueResponse(BaseModel):
+    jobs: list[ProcessingJob]
+
+
 class EngineResult(BaseModel):
     top_type: Optional[str] = None
     score: float = 0.0
