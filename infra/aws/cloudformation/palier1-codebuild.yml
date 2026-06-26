@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CodeBuild project to build and push EVA Document AI POC images to ECR.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: eva-document-ai
+  EnvName:
+    Type: String
+    Default: poc
+  GitRepositoryUrl:
+    Type: String
+    Default: https://github.com/jonathanbard01-boop/POC-AWS-IA-Documentaire.git
+  GitBranch:
+    Type: String
+    Default: main
+  ImageTag:
+    Type: String
+    Default: latest
+  ApiRepositoryUri:
+    Type: String
+  WorkerRepositoryUri:
+    Type: String
+
+Resources:
+  CodeBuildLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/codebuild/${ProjectName}-${EnvName}-image-builder'
+      RetentionInDays: 14
+
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: codebuild-image-builder-access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:CompleteLayerUpload
+                  - ecr:DescribeRepositories
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                Resource: '*'
+
+  ImageBuilderProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${ProjectName}-${EnvName}-image-builder'
+      Description: Build and push API and worker Docker images for EVA Document AI POC.
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Source:
+        Type: NO_SOURCE
+        BuildSpec: !Sub |
+          version: 0.2
+          env:
+            shell: bash
+          phases:
+            pre_build:
+              commands:
+                - set -euo pipefail
+                - echo "Cloning repository ${GitRepositoryUrl}"
+                - git clone --branch ${GitBranch} --depth 1 ${GitRepositoryUrl} repo
+                - cd repo
+                - echo "Logging in to ECR"
+                - aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
+            build:
+              commands:
+                - echo "Building API image ${ApiRepositoryUri}:${ImageTag}"
+                - docker build -f Dockerfile.api -t ${ApiRepositoryUri}:${ImageTag} .
+                - echo "Building worker image ${WorkerRepositoryUri}:${ImageTag}"
+                - docker build -f Dockerfile.worker -t ${WorkerRepositoryUri}:${ImageTag} .
+            post_build:
+              commands:
+                - echo "Pushing API image"
+                - docker push ${ApiRepositoryUri}:${ImageTag}
+                - echo "Pushing worker image"
+                - docker push ${WorkerRepositoryUri}:${ImageTag}
+                - echo "Images pushed successfully"
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_MEDIUM
+        Image: aws/codebuild/standard:7.0
+        PrivilegedMode: true
+      Artifacts:
+        Type: NO_ARTIFACTS
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: !Ref CodeBuildLogGroup
+      TimeoutInMinutes: 60
+
+Outputs:
+  CodeBuildProjectName:
+    Value: !Ref ImageBuilderProject
+  CodeBuildLogGroupName:
+    Value: !Ref CodeBuildLogGroup
