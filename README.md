@@ -52,6 +52,39 @@ docker compose up --build
 
 API : http://localhost:8000/health
 
+## Tester le flux local
+
+Uploader un fichier texte de test :
+
+```bash
+curl -F "file=@data/bm25_examples/facture_creche.txt" \
+  http://localhost:8000/documents/upload
+```
+
+Analyser le document avec l'identifiant retourné :
+
+```bash
+curl -X POST http://localhost:8000/documents/<document_id>/analyze
+```
+
+Consulter le résultat :
+
+```bash
+curl http://localhost:8000/documents/<document_id>/result
+```
+
+Endpoints disponibles :
+
+```text
+GET  /health
+POST /documents/upload
+GET  /documents
+GET  /documents/{document_id}
+POST /documents/{document_id}/analyze
+GET  /documents/{document_id}/result
+GET  /document-types
+```
+
 ## Structure
 
 ```text
@@ -69,4 +102,4 @@ tests/        Tests unitaires
 
 ## Prochaine étape
 
-Implémenter Lot 1 + Lot 2 : infrastructure AWS minimale et API d'ingestion.
+Implémenter OpenCV qualité image, puis brancher le worker sur SQS / S3 / DynamoDB pour passer de la chaîne locale au Palier 1 AWS.
