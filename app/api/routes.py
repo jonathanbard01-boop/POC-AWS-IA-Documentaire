@@ -7,6 +7,7 @@ from app.core.schemas import (
     HealthResponse,
     UploadResponse,
 )
+from app.services.document_analysis_service import analyze_document
 from app.services.ingest_service import (
     create_document,
     get_document,
@@ -39,6 +40,22 @@ def get_document_by_id(document_id: str) -> DocumentRecord:
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
     return document
+
+
+@router.post("/documents/{document_id}/analyze", response_model=DocumentResultResponse)
+def analyze_document_by_id(document_id: str) -> DocumentResultResponse:
+    document = get_document(document_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    result = analyze_document(document)
+    return DocumentResultResponse(
+        document_id=document.document_id,
+        filename=document.filename,
+        status=result["status"],
+        result_available=True,
+        result=result,
+    )
 
 
 @router.get("/documents/{document_id}/result", response_model=DocumentResultResponse)
