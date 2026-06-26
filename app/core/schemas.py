@@ -23,6 +23,10 @@ class DocumentRecord(BaseModel):
     content_type: Optional[str] = None
     size_bytes: int = 0
     local_path: Optional[str] = None
+    s3_bucket: Optional[str] = None
+    s3_key: Optional[str] = None
+    result_s3_bucket: Optional[str] = None
+    result_s3_key: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     final_type: Optional[str] = None
