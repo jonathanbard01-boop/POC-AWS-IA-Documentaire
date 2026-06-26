@@ -65,7 +65,10 @@ class AWSSQSWorker:
         except Exception as exc:
             self._update_job(job_id, "failed", str(exc))
             self.document_store.update_status(document_id, "error")
-            raise
+            # Keep the worker alive. The message is intentionally not deleted so
+            # SQS can retry and then route it to the DLQ after maxReceiveCount.
+            print(f"Document processing failed for {document_id}: {exc}")
+            return True
 
     def _download_document(self, record) -> str:
         work_dir = Path("/tmp/eva-document-ai-poc-worker") / record.document_id
