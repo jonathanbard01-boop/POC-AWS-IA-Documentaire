@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from app.core.schemas import DocumentRecord
 from app.services.document_analysis_service import analyze_document
+from app.services.processing_queue_service import local_processing_queue
 
 
 def analyze_local_file(path: str) -> dict:
@@ -28,14 +29,23 @@ def analyze_local_file(path: str) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description="EVA POC local worker")
     parser.add_argument("--file", help="Local file to analyze without AWS")
+    parser.add_argument("--run-next", action="store_true", help="Run the next queued local processing job")
     args = parser.parse_args()
 
-    if not args.file:
-        print("EVA POC worker ready. Use --file <path> for local analysis.")
+    if args.file:
+        result = analyze_local_file(args.file)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
         return
 
-    result = analyze_local_file(args.file)
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if args.run_next:
+        job = local_processing_queue.run_next()
+        if not job:
+            print("No queued job")
+            return
+        print(job.model_dump_json(indent=2))
+        return
+
+    print("EVA POC worker ready. Use --file <path> or --run-next for local processing.")
 
 
 if __name__ == "__main__":
