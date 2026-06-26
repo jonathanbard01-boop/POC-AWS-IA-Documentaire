@@ -5,6 +5,8 @@ from app.core.schemas import (
     DocumentRecord,
     DocumentResultResponse,
     HealthResponse,
+    ProcessingJobResponse,
+    ProcessingQueueResponse,
     UploadResponse,
 )
 from app.services.document_analysis_service import analyze_document
@@ -14,6 +16,7 @@ from app.services.ingest_service import (
     get_document_result,
     list_documents,
 )
+from app.services.processing_queue_service import local_processing_queue
 
 router = APIRouter()
 
@@ -56,6 +59,28 @@ def analyze_document_by_id(document_id: str) -> DocumentResultResponse:
         result_available=True,
         result=result,
     )
+
+
+@router.post("/documents/{document_id}/enqueue", response_model=ProcessingJobResponse)
+def enqueue_document(document_id: str) -> ProcessingJobResponse:
+    try:
+        job = local_processing_queue.enqueue(document_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return ProcessingJobResponse(job=job)
+
+
+@router.get("/processing/queue", response_model=ProcessingQueueResponse)
+def get_processing_queue() -> ProcessingQueueResponse:
+    return ProcessingQueueResponse(jobs=local_processing_queue.list_jobs())
+
+
+@router.post("/processing/run-next", response_model=ProcessingJobResponse)
+def run_next_processing_job() -> ProcessingJobResponse:
+    job = local_processing_queue.run_next()
+    if not job:
+        raise HTTPException(status_code=404, detail="No queued job")
+    return ProcessingJobResponse(job=job)
 
 
 @router.get("/documents/{document_id}/result", response_model=DocumentResultResponse)
