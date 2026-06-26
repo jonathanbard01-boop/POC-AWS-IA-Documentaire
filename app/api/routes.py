@@ -1,5 +1,6 @@
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
+from app.core.config import settings
 from app.core.schemas import (
     DocumentListResponse,
     DocumentRecord,
@@ -16,7 +17,7 @@ from app.services.ingest_service import (
     get_document_result,
     list_documents,
 )
-from app.services.processing_queue_service import local_processing_queue
+from app.services.queue_selector import get_processing_queue as selected_processing_queue
 
 router = APIRouter()
 
@@ -47,6 +48,12 @@ def get_document_by_id(document_id: str) -> DocumentRecord:
 
 @router.post("/documents/{document_id}/analyze", response_model=DocumentResultResponse)
 def analyze_document_by_id(document_id: str) -> DocumentResultResponse:
+    if settings.is_aws:
+        raise HTTPException(
+            status_code=409,
+            detail="Direct synchronous analysis is disabled in AWS mode. Use /enqueue and the worker.",
+        )
+
     document = get_document(document_id)
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -64,7 +71,7 @@ def analyze_document_by_id(document_id: str) -> DocumentResultResponse:
 @router.post("/documents/{document_id}/enqueue", response_model=ProcessingJobResponse)
 def enqueue_document(document_id: str) -> ProcessingJobResponse:
     try:
-        job = local_processing_queue.enqueue(document_id)
+        job = selected_processing_queue().enqueue(document_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return ProcessingJobResponse(job=job)
@@ -72,12 +79,18 @@ def enqueue_document(document_id: str) -> ProcessingJobResponse:
 
 @router.get("/processing/queue", response_model=ProcessingQueueResponse)
 def get_processing_queue() -> ProcessingQueueResponse:
-    return ProcessingQueueResponse(jobs=local_processing_queue.list_jobs())
+    return ProcessingQueueResponse(jobs=selected_processing_queue().list_jobs())
 
 
 @router.post("/processing/run-next", response_model=ProcessingJobResponse)
 def run_next_processing_job() -> ProcessingJobResponse:
-    job = local_processing_queue.run_next()
+    if settings.is_aws:
+        raise HTTPException(
+            status_code=409,
+            detail="Manual run-next is disabled in AWS mode. The ECS worker consumes SQS.",
+        )
+
+    job = selected_processing_queue().run_next()
     if not job:
         raise HTTPException(status_code=404, detail="No queued job")
     return ProcessingJobResponse(job=job)
