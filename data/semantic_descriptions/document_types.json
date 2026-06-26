@@ -1,0 +1,10 @@
+{
+  "formulaire_famille": "Formulaire de demande relatif aux prestations famille, comportant l'identité du bénéficiaire et des informations de situation familiale.",
+  "formulaire_logement": "Formulaire ou demande lié au logement, à une aide au logement, un loyer ou une situation de domicile.",
+  "facture_creche": "Document émis par une crèche ou une structure de garde d'enfant, comportant généralement une période de garde, un montant et le nom de l'enfant.",
+  "facture_centre_loisirs": "Facture ou justificatif émis par un centre de loisirs, une garderie ou une structure d'accueil périscolaire.",
+  "rib": "Relevé d'identité bancaire contenant un IBAN, un BIC et le nom du titulaire du compte.",
+  "justificatif_domicile": "Document prouvant une adresse, comme une facture d'eau, d'électricité, une quittance de loyer ou une attestation de domicile.",
+  "piece_identite": "Document officiel d'identité comme une carte nationale d'identité, un passeport ou un titre de séjour.",
+  "document_inconnu": "Document qui ne correspond pas à une typologie connue du référentiel."
+}

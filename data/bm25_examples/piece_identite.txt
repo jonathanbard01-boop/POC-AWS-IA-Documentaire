@@ -1,0 +1,1 @@
+Exemple fictif pour piece_identite. Ce fichier sert à amorcer l'index BM25 du POC.

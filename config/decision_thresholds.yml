@@ -1,0 +1,19 @@
+ocr:
+  automatic_min_confidence: 0.80
+  review_min_confidence: 0.50
+  reject_below_confidence: 0.20
+
+bm25:
+  min_score: 5.0
+  min_margin: 2.0
+
+graphic:
+  min_score: 0.75
+  strong_score: 0.90
+
+image_quality:
+  reject_blank: true
+  min_quality_score: 0.50
+
+decision:
+  require_two_engines_for_auto: true
