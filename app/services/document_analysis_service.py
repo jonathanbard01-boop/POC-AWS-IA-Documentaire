@@ -5,18 +5,14 @@ from app.core.schemas import DocumentRecord, EngineResult
 from app.services.bm25_classifier_service import get_default_bm25_classifier
 from app.services.image_preprocess_service import analyze_image_quality
 from app.services.ocr_tesseract_service import extract_text
-from app.storage.local_storage import local_document_store
+from app.storage.document_store import get_document_store
 
 
 def analyze_document(record: DocumentRecord) -> dict:
-    """Run the first local analysis pipeline on one document.
+    """Run the first analysis pipeline on one document.
 
-    Pipeline V1 local:
-    - compute image quality when the file is an image;
-    - read text or OCR image;
-    - classify with BM25;
-    - apply decision engine;
-    - store result in the local document store.
+    Local mode stores results in the local filesystem-backed store. AWS mode
+    stores the result JSON in S3 and updates DynamoDB metadata.
     """
 
     if not record.local_path:
@@ -72,5 +68,5 @@ def analyze_document(record: DocumentRecord) -> dict:
             }
         ],
     }
-    local_document_store.set_result(record.document_id, result)
+    get_document_store().set_result(record.document_id, result)
     return result
