@@ -43,6 +43,28 @@ Front-office React
 - SageMaker / GPU
 - Fine-tuning
 
+## Déployer le socle AWS
+
+Depuis AWS CloudShell ou un poste avec AWS CLI configuré :
+
+```bash
+git clone https://github.com/jonathanbard01-boop/POC-AWS-IA-Documentaire.git
+cd POC-AWS-IA-Documentaire
+chmod +x scripts/aws_deploy_foundation.sh
+AWS_REGION=eu-west-3 ./scripts/aws_deploy_foundation.sh
+```
+
+Ce premier déploiement crée :
+
+- buckets S3 : input, processed, results, errors, training ;
+- tables DynamoDB : documents, processing jobs, validation tasks, document types, corrections ;
+- file SQS et DLQ ;
+- repositories ECR API et worker ;
+- rôles IAM API / worker ;
+- log groups CloudWatch.
+
+Guide détaillé : `docs/aws-deployment-step-by-step.md`.
+
 ## Lancement local
 
 ```bash
@@ -89,6 +111,9 @@ POST /documents/upload
 GET  /documents
 GET  /documents/{document_id}
 POST /documents/{document_id}/analyze
+POST /documents/{document_id}/enqueue
+GET  /processing/queue
+POST /processing/run-next
 GET  /documents/{document_id}/result
 GET  /document-types
 ```
@@ -110,4 +135,4 @@ tests/        Tests unitaires
 
 ## Prochaine étape
 
-Implémenter OpenCV qualité image, puis brancher le worker sur SQS / S3 / DynamoDB pour passer de la chaîne locale au Palier 1 AWS.
+Créer le deuxième template AWS : ECS Fargate, Application Load Balancer, task definitions API/worker, variables d'environnement et service discovery minimal.
