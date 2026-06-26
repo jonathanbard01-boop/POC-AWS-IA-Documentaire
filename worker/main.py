@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
+from app.core.config import settings
 from app.core.schemas import DocumentRecord
 from app.services.document_analysis_service import analyze_document
 from app.services.processing_queue_service import local_processing_queue
@@ -27,14 +28,27 @@ def analyze_local_file(path: str) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="EVA POC local worker")
+    parser = argparse.ArgumentParser(description="EVA POC worker")
     parser.add_argument("--file", help="Local file to analyze without AWS")
     parser.add_argument("--run-next", action="store_true", help="Run the next queued local processing job")
+    parser.add_argument("--once", action="store_true", help="In AWS mode, process one SQS message and exit")
     args = parser.parse_args()
 
     if args.file:
         result = analyze_local_file(args.file)
         print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
+    if settings.is_aws:
+        from worker.aws_worker import AWSSQSWorker
+
+        worker = AWSSQSWorker()
+        if args.once:
+            processed = worker.run_once()
+            print("Processed one message" if processed else "No SQS message available")
+            return
+        print("EVA POC AWS worker started. Polling SQS.")
+        worker.run_forever()
         return
 
     if args.run_next:
