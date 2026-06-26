@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.core.decision_engine import decide
 from app.core.schemas import DocumentRecord, EngineResult
 from app.services.bm25_classifier_service import get_default_bm25_classifier
+from app.services.image_preprocess_service import analyze_image_quality
 from app.services.ocr_tesseract_service import extract_text
 from app.storage.local_storage import local_document_store
 
@@ -11,6 +12,7 @@ def analyze_document(record: DocumentRecord) -> dict:
     """Run the first local analysis pipeline on one document.
 
     Pipeline V1 local:
+    - compute image quality when the file is an image;
     - read text or OCR image;
     - classify with BM25;
     - apply decision engine;
@@ -20,13 +22,16 @@ def analyze_document(record: DocumentRecord) -> dict:
     if not record.local_path:
         raise ValueError("Document has no local path")
 
+    image_quality = analyze_image_quality(record.local_path)
     ocr = extract_text(record.local_path)
     bm25 = get_default_bm25_classifier().classify(ocr["text"])
     graphic = EngineResult(top_type="document_inconnu", score=0.0)
 
+    is_blank = bool(image_quality["is_blank"]) if image_quality["is_blank"] is not None else ocr["word_count"] == 0
+
     decision = decide(
         ocr_confidence=float(ocr["confidence"]),
-        is_blank=ocr["word_count"] == 0,
+        is_blank=is_blank,
         bm25=bm25,
         graphic=graphic,
     )
@@ -49,9 +54,11 @@ def analyze_document(record: DocumentRecord) -> dict:
                     "error": ocr["error"],
                 },
                 "image_quality": {
-                    "is_blank": ocr["word_count"] == 0,
-                    "blur_score": None,
-                    "quality_score": None,
+                    "is_image": image_quality["is_image"],
+                    "is_blank": is_blank,
+                    "blur_score": image_quality["blur_score"],
+                    "quality_score": image_quality["quality_score"],
+                    "error": image_quality["error"],
                 },
                 "barcode": {
                     "found": False,
