@@ -1,0 +1,277 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS Fargate stack for the EVA Document AI POC Palier 1.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: eva-document-ai
+  EnvName:
+    Type: String
+    Default: poc
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  PublicSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+  AllowedIngressCidr:
+    Type: String
+    Default: 0.0.0.0/0
+  ApiImage:
+    Type: String
+  WorkerImage:
+    Type: String
+  EcsTaskExecutionRoleArn:
+    Type: String
+  ApiTaskRoleArn:
+    Type: String
+  WorkerTaskRoleArn:
+    Type: String
+  InputBucketName:
+    Type: String
+  ProcessedBucketName:
+    Type: String
+  ResultsBucketName:
+    Type: String
+  ErrorsBucketName:
+    Type: String
+  TrainingBucketName:
+    Type: String
+  ProcessingQueueUrl:
+    Type: String
+  DocumentsTableName:
+    Type: String
+  ProcessingJobsTableName:
+    Type: String
+  ValidationTasksTableName:
+    Type: String
+  DocumentTypesTableName:
+    Type: String
+  HumanCorrectionsTableName:
+    Type: String
+  ApiDesiredCount:
+    Type: Number
+    Default: 1
+  WorkerDesiredCount:
+    Type: Number
+    Default: 0
+
+Resources:
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub '${ProjectName}-${EnvName}-cluster'
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub '${ProjectName}-${EnvName} ALB security group'
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref AllowedIngressCidr
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  ServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub '${ProjectName}-${EnvName} ECS service security group'
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub '${ProjectName}-${EnvName}-alb'
+      Scheme: internet-facing
+      Type: application
+      IpAddressType: ipv4
+      SecurityGroups:
+        - !Ref AlbSecurityGroup
+      Subnets: !Ref PublicSubnetIds
+
+  ApiTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${ProjectName}-${EnvName}-api-tg'
+      VpcId: !Ref VpcId
+      Protocol: HTTP
+      Port: 8000
+      TargetType: ip
+      HealthCheckEnabled: true
+      HealthCheckPath: /health
+      HealthCheckProtocol: HTTP
+      HealthCheckPort: traffic-port
+      Matcher:
+        HttpCode: '200'
+
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ApiTargetGroup
+
+  ApiTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${ProjectName}-${EnvName}-api'
+      RequiresCompatibilities:
+        - FARGATE
+      NetworkMode: awsvpc
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn: !Ref EcsTaskExecutionRoleArn
+      TaskRoleArn: !Ref ApiTaskRoleArn
+      ContainerDefinitions:
+        - Name: api
+          Image: !Ref ApiImage
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8000
+              Protocol: tcp
+          Environment:
+            - Name: APP_ENV
+              Value: aws
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_INPUT_BUCKET
+              Value: !Ref InputBucketName
+            - Name: S3_PROCESSED_BUCKET
+              Value: !Ref ProcessedBucketName
+            - Name: S3_RESULTS_BUCKET
+              Value: !Ref ResultsBucketName
+            - Name: S3_ERRORS_BUCKET
+              Value: !Ref ErrorsBucketName
+            - Name: S3_TRAINING_BUCKET
+              Value: !Ref TrainingBucketName
+            - Name: SQS_PROCESSING_QUEUE_URL
+              Value: !Ref ProcessingQueueUrl
+            - Name: DYNAMODB_DOCUMENTS_TABLE
+              Value: !Ref DocumentsTableName
+            - Name: DYNAMODB_PROCESSING_JOBS_TABLE
+              Value: !Ref ProcessingJobsTableName
+            - Name: DYNAMODB_VALIDATION_TASKS_TABLE
+              Value: !Ref ValidationTasksTableName
+            - Name: DYNAMODB_DOCUMENT_TYPES_TABLE
+              Value: !Ref DocumentTypesTableName
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub '/ecs/${ProjectName}-${EnvName}-api'
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  ApiService:
+    Type: AWS::ECS::Service
+    DependsOn: HttpListener
+    Properties:
+      ServiceName: !Sub '${ProjectName}-${EnvName}-api'
+      Cluster: !Ref EcsCluster
+      LaunchType: FARGATE
+      DesiredCount: !Ref ApiDesiredCount
+      TaskDefinition: !Ref ApiTaskDefinition
+      HealthCheckGracePeriodSeconds: 120
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref ServiceSecurityGroup
+          Subnets: !Ref PublicSubnetIds
+      LoadBalancers:
+        - ContainerName: api
+          ContainerPort: 8000
+          TargetGroupArn: !Ref ApiTargetGroup
+
+  WorkerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${ProjectName}-${EnvName}-worker'
+      RequiresCompatibilities:
+        - FARGATE
+      NetworkMode: awsvpc
+      Cpu: '1024'
+      Memory: '2048'
+      ExecutionRoleArn: !Ref EcsTaskExecutionRoleArn
+      TaskRoleArn: !Ref WorkerTaskRoleArn
+      ContainerDefinitions:
+        - Name: worker
+          Image: !Ref WorkerImage
+          Essential: true
+          Environment:
+            - Name: APP_ENV
+              Value: aws
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_INPUT_BUCKET
+              Value: !Ref InputBucketName
+            - Name: S3_PROCESSED_BUCKET
+              Value: !Ref ProcessedBucketName
+            - Name: S3_RESULTS_BUCKET
+              Value: !Ref ResultsBucketName
+            - Name: S3_ERRORS_BUCKET
+              Value: !Ref ErrorsBucketName
+            - Name: S3_TRAINING_BUCKET
+              Value: !Ref TrainingBucketName
+            - Name: SQS_PROCESSING_QUEUE_URL
+              Value: !Ref ProcessingQueueUrl
+            - Name: DYNAMODB_DOCUMENTS_TABLE
+              Value: !Ref DocumentsTableName
+            - Name: DYNAMODB_PROCESSING_JOBS_TABLE
+              Value: !Ref ProcessingJobsTableName
+            - Name: DYNAMODB_VALIDATION_TASKS_TABLE
+              Value: !Ref ValidationTasksTableName
+            - Name: DYNAMODB_HUMAN_CORRECTIONS_TABLE
+              Value: !Ref HumanCorrectionsTableName
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub '/ecs/${ProjectName}-${EnvName}-worker'
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  WorkerService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub '${ProjectName}-${EnvName}-worker'
+      Cluster: !Ref EcsCluster
+      LaunchType: FARGATE
+      DesiredCount: !Ref WorkerDesiredCount
+      TaskDefinition: !Ref WorkerTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref ServiceSecurityGroup
+          Subnets: !Ref PublicSubnetIds
+
+Outputs:
+  ClusterName:
+    Value: !Ref EcsCluster
+  ApiServiceName:
+    Value: !GetAtt ApiService.Name
+  WorkerServiceName:
+    Value: !GetAtt WorkerService.Name
+  AlbDnsName:
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+  ApiHealthUrl:
+    Value: !Sub 'http://${ApplicationLoadBalancer.DNSName}/health'
+  ApiBaseUrl:
+    Value: !Sub 'http://${ApplicationLoadBalancer.DNSName}'
+  ApiTargetGroupArn:
+    Value: !Ref ApiTargetGroup
