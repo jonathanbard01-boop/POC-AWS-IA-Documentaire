@@ -9,7 +9,7 @@ ENV_NAME="${ENV_NAME:-poc}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 ALLOWED_INGRESS_CIDR="${ALLOWED_INGRESS_CIDR:-0.0.0.0/0}"
 API_DESIRED_COUNT="${API_DESIRED_COUNT:-1}"
-WORKER_DESIRED_COUNT="${WORKER_DESIRED_COUNT:-0}"
+WORKER_DESIRED_COUNT="${WORKER_DESIRED_COUNT:-1}"
 TEMPLATE="infra/aws/cloudformation/palier1-ecs.yml"
 
 if ! command -v aws >/dev/null 2>&1; then
@@ -80,6 +80,8 @@ echo "VPC: ${VPC_ID}"
 echo "Subnets: ${SUBNET_IDS}"
 echo "API image: ${API_IMAGE}"
 echo "Worker image: ${WORKER_IMAGE}"
+echo "API desired count: ${API_DESIRED_COUNT}"
+echo "Worker desired count: ${WORKER_DESIRED_COUNT}"
 
 aws cloudformation deploy \
   --region "${REGION}" \
