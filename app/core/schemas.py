@@ -77,3 +77,78 @@ class Decision(BaseModel):
     risk_level: str
     requires_human_review: bool
     reasons: list[str]
+
+
+class CorpusDocumentSummary(BaseModel):
+    document_type: str
+    filename: str
+    char_count: int
+    word_count: int
+    token_count: int
+    preview: str
+    active: bool = True
+    version: Optional[str] = None
+    s3_bucket: Optional[str] = None
+    s3_key: Optional[str] = None
+    updated_at: Optional[datetime] = None
+
+
+class CorpusResponse(BaseModel):
+    source: str
+    document_count: int
+    documents: list[CorpusDocumentSummary]
+
+
+class CorpusTextUpsertRequest(BaseModel):
+    text: str
+    version: Optional[str] = None
+    active: bool = True
+
+
+class CorpusUpsertResponse(BaseModel):
+    document_type: str
+    filename: str
+    active: bool
+    version: str
+    char_count: int
+    word_count: int
+    s3_bucket: Optional[str] = None
+    s3_key: Optional[str] = None
+    updated_at: datetime
+
+
+class ClassificationTestRequest(BaseModel):
+    text: str
+
+
+class ClassificationTestResponse(BaseModel):
+    text_length: int
+    bm25_result: EngineResult
+    decision: Decision
+
+
+class HumanValidationRequest(BaseModel):
+    comment: Optional[str] = None
+
+
+class HumanCorrectionRequest(BaseModel):
+    corrected_type: str
+    comment: Optional[str] = None
+
+
+class HumanValidationRecord(BaseModel):
+    correction_id: str
+    document_id: str
+    action: str
+    previous_type: Optional[str] = None
+    corrected_type: Optional[str] = None
+    comment: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class HumanValidationResponse(BaseModel):
+    document_id: str
+    status: str
+    final_type: Optional[str] = None
+    correction: HumanValidationRecord
+    result: dict
