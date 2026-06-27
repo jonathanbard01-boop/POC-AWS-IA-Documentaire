@@ -264,6 +264,16 @@ Resources:
                   - !Sub '${ResultsBucket.Arn}/*'
               - Effect: Allow
                 Action:
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt ResultsBucket.Arn
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - corpus/*
+                      - corpus/active_manifest.json
+              - Effect: Allow
+                Action:
                   - dynamodb:GetItem
                   - dynamodb:PutItem
                   - dynamodb:UpdateItem

@@ -2,25 +2,19 @@ from __future__ import annotations
 
 from app.core.decision_engine import decide
 from app.core.schemas import DocumentRecord, EngineResult
-from app.services.bm25_classifier_service import get_default_bm25_classifier
 from app.services.image_preprocess_service import analyze_image_quality
 from app.services.ocr_tesseract_service import extract_text
+from app.services.runtime_corpus_service import classify_runtime_text
 from app.storage.document_store import get_document_store
 
 
 def analyze_document(record: DocumentRecord) -> dict:
-    """Run the first analysis pipeline on one document.
-
-    Local mode stores results in the local filesystem-backed store. AWS mode
-    stores the result JSON in S3 and updates DynamoDB metadata.
-    """
-
     if not record.local_path:
         raise ValueError("Document has no local path")
 
     image_quality = analyze_image_quality(record.local_path)
     ocr = extract_text(record.local_path)
-    bm25 = get_default_bm25_classifier().classify(ocr["text"])
+    bm25 = classify_runtime_text(ocr["text"])
     graphic = EngineResult(top_type="document_inconnu", score=0.0)
 
     is_blank = bool(image_quality["is_blank"]) if image_quality["is_blank"] is not None else ocr["word_count"] == 0
@@ -56,12 +50,7 @@ def analyze_document(record: DocumentRecord) -> dict:
                     "quality_score": image_quality["quality_score"],
                     "error": image_quality["error"],
                 },
-                "barcode": {
-                    "found": False,
-                    "value": None,
-                    "type": None,
-                    "coherent_with_ai": None,
-                },
+                "barcode": {"found": False, "value": None, "type": None, "coherent_with_ai": None},
                 "graphic_result": graphic.model_dump(),
                 "bm25_result": bm25.model_dump(),
                 "decision": decision.model_dump(),
